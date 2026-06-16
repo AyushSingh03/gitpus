@@ -1,0 +1,32 @@
+name: Daily Commit
+
+# Keeps the contribution graph green by committing once a day.
+on:
+  schedule:
+    # Runs every day at 02:30 UTC. GitHub cron is in UTC.
+    # (Note: scheduled runs can be delayed by a few hours when GitHub is busy.)
+    - cron: "30 2 * * *"
+  # Lets you trigger it manually from the Actions tab too.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make a daily change
+        run: |
+          echo "$(date -u '+%Y-%m-%d %H:%M:%S') UTC - keeping it green" >> activity.log
+
+      - name: Commit and push
+        run: |
+          git config user.name  "${{ secrets.GIT_NAME }}"
+          git config user.email "${{ secrets.GIT_EMAIL }}"
+          git add activity.log
+          git commit -m "chore: daily update $(date -u '+%Y-%m-%d')" || exit 0
+          git push
