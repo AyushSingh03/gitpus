@@ -1,12 +1,12 @@
 name: Daily Commit
 
-# Keeps the contribution graph green by committing once a day.
+# Keeps the contribution graph green with a natural-looking number of
+# commits each day (random count, random messages, random timestamps).
 on:
   schedule:
-    # Runs every day at 02:30 UTC. GitHub cron is in UTC.
-    # (Note: scheduled runs can be delayed by a few hours when GitHub is busy.)
+    # Runs daily at 02:30 UTC. GitHub cron is UTC and may be delayed when busy.
     - cron: "30 2 * * *"
-  # Lets you trigger it manually from the Actions tab too.
+  # Manual trigger from the Actions tab.
   workflow_dispatch:
 
 permissions:
@@ -19,14 +19,56 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Make a daily change
+      - name: Make a random number of natural-looking commits
         run: |
-          echo "$(date -u '+%Y-%m-%d %H:%M:%S') UTC - keeping it green" >> activity.log
-
-      - name: Commit and push
-        run: |
+          set -e
           git config user.name  "${{ secrets.GIT_NAME }}"
           git config user.email "${{ secrets.GIT_EMAIL }}"
-          git add activity.log
-          git commit -m "chore: daily update $(date -u '+%Y-%m-%d')" || exit 0
+
+          # --- Pick how many commits to make today -------------------------
+          # Weighted so most days are light (1-3), some are busier, rarely a
+          # big day. Always >= 1 so the streak never breaks.
+          ROLL=$((RANDOM % 100))
+          if   [ "$ROLL" -lt 40 ]; then COUNT=$(( (RANDOM % 2) + 1 ));  # 40%: 1-2
+          elif [ "$ROLL" -lt 80 ]; then COUNT=$(( (RANDOM % 3) + 2 ));  # 40%: 2-4
+          elif [ "$ROLL" -lt 95 ]; then COUNT=$(( (RANDOM % 4) + 4 ));  # 15%: 4-7
+          else                          COUNT=$(( (RANDOM % 5) + 8 ));  #  5%: 8-12
+          fi
+          echo "Making $COUNT commit(s) today."
+
+          # --- Pools of varied commit messages -----------------------------
+          MESSAGES=(
+            "chore: update activity log"
+            "docs: tidy notes"
+            "refactor: minor cleanup"
+            "chore: housekeeping"
+            "style: small tweak"
+            "chore: sync daily progress"
+            "docs: update changelog"
+            "chore: bump activity"
+            "fix: small adjustment"
+            "chore: routine maintenance"
+            "docs: add note"
+            "chore: end of day update"
+          )
+
+          TODAY=$(date -u '+%Y-%m-%d')
+
+          for i in $(seq 1 "$COUNT"); do
+            # Random time-of-day for the author/committer date so commits are
+            # spread across the day instead of all at 02:30.
+            H=$(printf '%02d' $((RANDOM % 24)))
+            M=$(printf '%02d' $((RANDOM % 60)))
+            S=$(printf '%02d' $((RANDOM % 60)))
+            STAMP="${TODAY}T${H}:${M}:${S}Z"
+
+            MSG="${MESSAGES[$((RANDOM % ${#MESSAGES[@]}))]}"
+
+            echo "${STAMP} - ${MSG} (#${i})" >> activity.log
+
+            git add activity.log
+            GIT_AUTHOR_DATE="$STAMP" GIT_COMMITTER_DATE="$STAMP" \
+              git commit -q -m "$MSG"
+          done
+
           git push
